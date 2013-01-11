@@ -72,6 +72,36 @@ __PACKAGE__->add_unique_constraint("name_unique", ["name"]);
 
 =head1 RELATIONS
 
+=head2 change_creditors
+
+Type: has_many
+
+Related object: L<QtoTDevo::Schema::Result::Change>
+
+=cut
+
+__PACKAGE__->has_many(
+  "change_creditors",
+  "QtoTDevo::Schema::Result::Change",
+  { "foreign.creditor" => "self.id" },
+  { cascade_copy => 0, cascade_delete => 0 },
+);
+
+=head2 change_debtors
+
+Type: has_many
+
+Related object: L<QtoTDevo::Schema::Result::Change>
+
+=cut
+
+__PACKAGE__->has_many(
+  "change_debtors",
+  "QtoTDevo::Schema::Result::Change",
+  { "foreign.debtor" => "self.id" },
+  { cascade_copy => 0, cascade_delete => 0 },
+);
+
 =head2 loan_creditors
 
 Type: has_many
@@ -103,8 +133,8 @@ __PACKAGE__->has_many(
 );
 
 
-# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-11 08:29:29
-# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:BMm7j5d3FRDNjRJnYSdOhw
+# Created by DBIx::Class::Schema::Loader v0.07033 @ 2013-01-11 09:21:01
+# DO NOT MODIFY THIS OR ANYTHING ABOVE! md5sum:qCOh/XFCh5RURUVcsJCfcg
 
 
 # You can replace this text with custom code or comments, and it will be preserved on regeneration

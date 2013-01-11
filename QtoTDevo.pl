@@ -33,11 +33,35 @@ post '/:name' => sub {
   my $self = shift;
   my $creditor = $self->stash->{name};
   for my $debtor(keys %{ $emprestimos{$creditor} }) {
-    $emprestimos{$creditor}{$debtor}->update({value => $self->param($debtor) . "+ me.value"});
+    my $val = $self->param($debtor);
+    next unless defined $val;
+    my $obj = $emprestimos{$creditor}{$debtor};
+    $obj->update({value => $val + $obj->value});
+    $db->resultset("Change")->create({creditor => $obj->creditor->id, debtor => $obj->debtor->id, new_value => $obj->value});
   }
   $self->calc(\%emprestimos);
   $self->redirect_to("index");
 };
+
+websocket '/ws/event' => sub {
+  my $self = shift;
+  my $last_id = $db->resultset("Change")->get_column("id")->max;
+  my $id = Mojo::IOLoop->recurring(3 => sub {
+    my @chg = $db->resultset("Change")->search({id => {">" => $last_id}}, {order_by => 'id'})->all;
+    if(@chg) {
+      $self->send(Mojo::JSON->encode([
+        map {{
+          creditor  => $_->creditor->name,
+          debtor    => $_->debtor->name,
+          new_value => $_->new_value,
+        }} @chg])
+      );
+      $last_id = $chg[-1]->id;
+      app->log->debug($last_id);
+    }
+  });
+  #$self->on(finish => sub { Mojo::IOLoop->remove($id) });
+} => "ws";
 
 helper "calc" => sub{
   my $self		= shift;
@@ -64,22 +88,38 @@ __DATA__
 
 @@ index.html.ep
 % layout 'default';
-% title 'Welcome';
+% title 'Tabela de ';
+<script>
+  var ws = new WebSocket("<%= url_for("ws")->to_abs =%>");
+  ws.onmessage = function(event) {
+    var data = JSON.parse(event.data);
+    for(var i = 0; i < data.length; i++) {
+      var change = data[i];
+      var creditor = change['creditor'];
+      var debtor   = change['debtor'];
+      var value    = change['new_value'];
+
+      document.querySelector("table td.creditor_" + creditor + ".debtor_" + debtor).innerHTML = value;
+    }
+  };
+</script>
 <table border=1>
   <thead>
     <tr>
       <td></td>
       <% for my $pessoa(map {$_->name} @$pessoas) { %>
-        <th><a href="/<%= $pessoa =%>"><%= $pessoa =%></a></th>
+        <th id="creditor_<%= $pessoa =%>"><a href="/<%= $pessoa =%>"><%= $pessoa =%></a></th>
       <% } %>
     </tr>
   </thead>
   <tbody>
     <% for my $pessoa_col (@$pessoas) { %>
       <tr>
-        <th><a href="/<%= $pessoa_col->name =%>"><%= $pessoa_col->name =%></a></th>
+        <th id="debtor_<%= $pessoa_col =%>"><a href="/<%= $pessoa_col->name =%>"><%= $pessoa_col->name =%></a></th>
           <% for my $pessoa_row (@$pessoas) { %>
-            <td><%= $emprestimos->{$pessoa_col->name}{$pessoa_row->name}->value =%></td>
+            <td class="creditor_<%= $pessoa_col->name %> debtor_<%= $pessoa_row->name %>">
+              <%= $emprestimos->{$pessoa_col->name}{$pessoa_row->name}->value =%>
+            </td>
           <% } %>
       <tr>
     <% } %>
