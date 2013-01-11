@@ -11,11 +11,11 @@ my %emprestimos;
 for my $creditor(@pessoas) {
   for my $debtor(@pessoas) {
     my $obj = $db->resultset("Loan")->find_or_new({creditor => $creditor, debtor => $debtor});
-    if($obj->in_storage) {
+    if(not $obj->in_storage) {
       $obj->value(0);
       $obj->insert
     }
-    $emprestimos{$creditor}{$debtor} = $obj;
+    $emprestimos{$creditor->name}{$debtor->name} = $obj;
   }
 }
 
@@ -33,8 +33,7 @@ post '/:name' => sub {
   my $self = shift;
   my $creditor = $self->stash->{name};
   for my $debtor(keys %{ $emprestimos{$creditor} }) {
-    $emprestimos{$creditor}{$debtor}->value($self->param($debtor) + $emprestimos{$creditor}{$debtor}->value);
-    $emprestimos{$creditor}{$debtor}->update
+    $emprestimos{$creditor}{$debtor}->update({value => $self->param($debtor) . "+ me.value"});
   }
   $self->calc(\%emprestimos);
   $self->redirect_to("index");
@@ -51,10 +50,10 @@ helper "calc" => sub{
       my $cred_deb	= $cred_deb_obj->value;
       my $deb_cred	= $deb_cred_obj->value;
       if($cred_deb >= $deb_cred) {
-        $cred_deb->value($cred_deb - $deb_cred);
-        $cred_deb->update;
-        $deb_cred->value(0);
-        $deb_cred->update
+        $cred_deb_obj->value($cred_deb - $deb_cred);
+        $cred_deb_obj->update;
+        $deb_cred_obj->value(0);
+        $deb_cred_obj->update
       }
     }
   }
@@ -71,16 +70,16 @@ __DATA__
     <tr>
       <td></td>
       <% for my $pessoa(map {$_->name} @$pessoas) { %>
-        <td><a href="/<%= $pessoa =%>"><%= $pessoa =%></a></td>
+        <th><a href="/<%= $pessoa =%>"><%= $pessoa =%></a></th>
       <% } %>
     </tr>
   </thead>
   <tbody>
     <% for my $pessoa_col (@$pessoas) { %>
       <tr>
-        <td><a href="/<%= $pessoa_col->name =%>"><%= $pessoa_col->name =%></a></td>
+        <th><a href="/<%= $pessoa_col->name =%>"><%= $pessoa_col->name =%></a></th>
           <% for my $pessoa_row (@$pessoas) { %>
-            <td>**<%= $emprestimos->{$pessoa_col}{$pessoa_row}->value =%>**</td>
+            <td><%= $emprestimos->{$pessoa_col->name}{$pessoa_row->name}->value =%></td>
           <% } %>
       <tr>
     <% } %>
